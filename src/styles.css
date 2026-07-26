@@ -189,10 +189,18 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
 .inspector .stats { margin-top: 10px; font-size: 10.5px; color: var(--ink-dim); }
 
 /* ---------- walk pad / toast ---------- */
-.walkpad { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; z-index: 26; }
+.walkpad {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; z-index: 26;
+  pointer-events: auto;                              /* defensive: never inherit none from a parent */
+}
 .walkpad button {
   font-size: 12px; font-weight: 700; letter-spacing: .04em;
-  width: 88px; height: 52px; border-radius: 26px; touch-action: none;
+  width: 88px; height: 52px; border-radius: 26px;
+  touch-action: none;                                /* browser won't hijack press as scroll/zoom */
+  user-select: none;                                 /* no text selection on long-press */
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;                       /* kills the iOS magnifier/callout popup */
   background: var(--surface); border: 1px solid var(--accent); color: var(--accent-deep);
   box-shadow: var(--shadow); transition: background .12s;
 }

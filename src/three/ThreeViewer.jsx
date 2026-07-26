@@ -117,7 +117,7 @@ export default function ThreeViewer() {
           c.setHSL(hsl.h, hsl.s, Math.min(0.95, Math.max(0.05, hsl.l + sh)));
         }
         m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 });
-        m.userData.shared = true;                  // cached across rebuilds — never dispose
+        m.userData.shared = true;
         matCache.set(key, m);
       }
       return m;
@@ -140,7 +140,7 @@ export default function ThreeViewer() {
         const shape = new THREE.Shape(r.poly.map(([x, z]) => new THREE.Vector2(x, -z)));
         const m = mat
           ? new THREE.MeshStandardMaterial({ map: floorTexture(mat), roughness: 0.9 })
-          : new THREE.MeshStandardMaterial({ color: '#CFC8BA', roughness: 0.95 });   // warm bare concrete
+          : new THREE.MeshStandardMaterial({ color: '#CFC8BA', roughness: 0.95 });
         const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), m);
         mesh.rotation.x = -Math.PI / 2; mesh.position.y = 0.03; mesh.receiveShadow = true;
         house.add(mesh);
@@ -148,7 +148,7 @@ export default function ThreeViewer() {
 
       for (const w of s.walls) {
         const paint = paintById(s.wallMaterials[w.id]);
-        const mat = new THREE.MeshStandardMaterial({ color: paint ? paint.color : '#F5F0E6', roughness: 0.92 }); // warm plaster white
+        const mat = new THREE.MeshStandardMaterial({ color: paint ? paint.color : '#F5F0E6', roughness: 0.92 });
         for (const b of wallBoxes(w)) {
           const mesh = new THREE.Mesh(new THREE.BoxGeometry(b.sx, b.sy, b.sz), mat);
           mesh.position.set(b.cx, b.cy, b.cz); mesh.rotation.y = b.rotY;
@@ -164,17 +164,17 @@ export default function ThreeViewer() {
         for (const p of item.parts) {
           const mesh = new THREE.Mesh(
             new THREE.BoxGeometry(p.w, p.y1 - p.y0, p.d),
-            matFor(f.tint || item.color, f.tint ? 0 : p.sh)   // user tint overrides part shading
+            matFor(f.tint || item.color, f.tint ? 0 : p.sh)
           );
           mesh.position.set(p.dx, (p.y0 + p.y1) / 2, p.dz);
           mesh.castShadow = true;
-          mesh.receiveShadow = !!item.rug;              // rugs pick up shadows from what's on them
-          mesh.renderOrder = item.rug ? 0 : 1;           // rugs draw first, one layer behind other furniture
+          mesh.receiveShadow = !!item.rug;
+          mesh.renderOrder = item.rug ? 0 : 1;
           g.add(mesh);
         }
         g.position.set(f.pos[0], 0, f.pos[1]);
         g.rotation.y = f.rotDeg * Math.PI / 180;
-        g.scale.set(f.sw ?? 1, f.sw ?? 1, f.sd ?? 1);   // height follows width
+        g.scale.set(f.sw ?? 1, f.sw ?? 1, f.sd ?? 1);
         house.add(g);
       }
     };
@@ -261,10 +261,16 @@ export default function ThreeViewer() {
       {viewMode === 'walk' && (
         <div className="walkpad">
           <button
-            onPointerDown={() => (wk.fwd = 1)} onPointerUp={() => (wk.fwd = 0)} onPointerLeave={() => (wk.fwd = 0)}
+            onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); wk.fwd = 1; }}
+            onPointerUp={() => (wk.fwd = 0)}
+            onPointerCancel={() => (wk.fwd = 0)}
+            onContextMenu={e => e.preventDefault()}
           >▲ Walk</button>
           <button
-            onPointerDown={() => (wk.fwd = -1)} onPointerUp={() => (wk.fwd = 0)} onPointerLeave={() => (wk.fwd = 0)}
+            onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); wk.fwd = -1; }}
+            onPointerUp={() => (wk.fwd = 0)}
+            onPointerCancel={() => (wk.fwd = 0)}
+            onContextMenu={e => e.preventDefault()}
           >▼ Back</button>
           <span className="walkhint">drag to look around · WASD moves</span>
         </div>
