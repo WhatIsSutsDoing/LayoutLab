@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { useDesign, viewerApi } from '../store/designStore.js';
@@ -9,8 +9,6 @@ import { itemById } from '../data/catalog.js';
 import { floorById, paintById } from '../data/materials.js';
 import { floorTexture } from './textures.js';
 
-// Rugs are floor coverings, not furniture, so they should always sit visually
-// underneath everything else regardless of the order they were placed in.
 const drawOrder = furniture => [...furniture].sort((a, b) => {
   const ra = itemById(a.itemId)?.rug ? 0 : 1;
   const rb = itemById(b.itemId)?.rug ? 0 : 1;
@@ -21,12 +19,12 @@ export default function ThreeViewer() {
   const mountRef = useRef(null);
   const viewMode = useDesign(s => s.viewMode);
   const walkRef = useRef({ x: 30, z: 34, yaw: Math.PI, pitch: 0, keys: {}, fwd: 0 });
+  const [walking, setWalking] = useState(false);
 
   useEffect(() => {
     const mount = mountRef.current;
     const scene = new THREE.Scene();
 
-    // ---- warm daylight atmosphere ----
     const SKY = '#F4EFE6';
     scene.background = new THREE.Color(SKY);
     scene.fog = new THREE.Fog(SKY, 140, 340);
@@ -46,7 +44,6 @@ export default function ThreeViewer() {
     renderer.domElement.style.touchAction = 'none';
     mount.appendChild(renderer.domElement);
 
-    // warm sky bounce + gentle cool fill so shadow sides never go muddy
     scene.add(new THREE.HemisphereLight('#FFF4E2', '#8C8577', 0.75));
     const fill = new THREE.DirectionalLight('#DCE6EE', 0.45);
     fill.position.set(-45, 35, -35);
@@ -60,7 +57,6 @@ export default function ThreeViewer() {
     sun.target.position.set(30, 0, 30);
     scene.add(sun, sun.target);
 
-    // sage lawn + pale foundation slab under the 60 ft site
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(500, 500),
       new THREE.MeshStandardMaterial({ color: '#A8B79A', roughness: 1 })
@@ -87,25 +83,55 @@ export default function ThreeViewer() {
     controls.maxPolarAngle = Math.PI / 2 - 0.04;
     controls.enableDamping = true;
 
-    // drag-to-look in walk mode
+    // ---- drag-to-look + double-tap-to-walk in walk mode --------------------
     let look = null;
+    let downInfo = null;          // { time, x, y, moved } — tracks the current touch
+    let lastTap = 0;              // timestamp of the last completed single tap
     const el = renderer.domElement;
-    const pd = e => { if (useDesign.getState().viewMode === 'walk') { look = [e.clientX, e.clientY]; el.setPointerCapture(e.pointerId); } };
+
+    const pd = e => {
+      if (useDesign.getState().viewMode !== 'walk') return;
+      look = [e.clientX, e.clientY];
+      downInfo = { time: performance.now(), x: e.clientX, y: e.clientY, moved: false };
+      el.setPointerCapture(e.pointerId);
+    };
     const pm = e => {
       if (!look) return;
       const wk = walkRef.current;
       wk.yaw -= (e.clientX - look[0]) * 0.005;
       wk.pitch = clamp(wk.pitch - (e.clientY - look[1]) * 0.004, -1.2, 1.2);
       look = [e.clientX, e.clientY];
+      // flag as a drag once the finger travels > 10 px (prevents false taps)
+      if (downInfo && Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) > 10) {
+        downInfo.moved = true;
+      }
     };
-    const pu = () => { look = null; };
-    el.addEventListener('pointerdown', pd); el.addEventListener('pointermove', pm); el.addEventListener('pointerup', pu);
+    const pu = () => {
+      look = null;
+      if (downInfo && !downInfo.moved && performance.now() - downInfo.time < 300) {
+        const now = performance.now();
+        if (now - lastTap < 350) {
+          // ── double tap → toggle walking ──
+          const wk = walkRef.current;
+          wk.fwd = wk.fwd ? 0 : 1;
+          setWalking(!!wk.fwd);
+          lastTap = 0;            // reset so a triple-tap doesn't re-toggle
+        } else {
+          lastTap = now;
+        }
+      }
+      downInfo = null;
+    };
+    el.addEventListener('pointerdown', pd);
+    el.addEventListener('pointermove', pm);
+    el.addEventListener('pointerup', pu);
+    el.addEventListener('pointercancel', pu);
 
     const kd = e => { walkRef.current.keys[e.key.toLowerCase()] = true; };
     const ku = e => { walkRef.current.keys[e.key.toLowerCase()] = false; };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
 
-    // ---- shared per-part materials (base tone + catalog shade offset) -----
+    // ---- shared per-part materials -----------------------------------------
     const matCache = new Map();
     const matFor = (hex, sh = 0) => {
       const key = `${String(hex).trim()}|${sh || 0}`;
@@ -190,7 +216,6 @@ export default function ThreeViewer() {
       const s = useDesign.getState();
       if (queued) { queued = false; rebuild(); }
 
-      // sun from time of day — golden at the edges, warm white at noon
       const f = (s.timeOfDay - 5) / 16;
       const az = Math.PI * (0.2 + 1.6 * f);
       const elev = Math.max(0.06, Math.sin(f * Math.PI)) * 1.05;
@@ -204,7 +229,8 @@ export default function ThreeViewer() {
         if (s.viewMode === 'walk') {
           const r0 = s.rooms[0];
           const c = r0 ? [r0.poly.reduce((a, p) => a + p[0], 0) / r0.poly.length, r0.poly.reduce((a, p) => a + p[1], 0) / r0.poly.length] : [30, 30];
-          Object.assign(walkRef.current, { x: c[0], z: c[1], yaw: Math.PI * 0.25, pitch: 0 });
+          Object.assign(walkRef.current, { x: c[0], z: c[1], yaw: Math.PI * 0.25, pitch: 0, fwd: 0 });
+          setWalking(false);
         }
       }
 
@@ -240,7 +266,8 @@ export default function ThreeViewer() {
     return () => {
       cancelAnimationFrame(raf); ro.disconnect(); unsub();
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
-      el.removeEventListener('pointerdown', pd); el.removeEventListener('pointermove', pm); el.removeEventListener('pointerup', pu);
+      el.removeEventListener('pointerdown', pd); el.removeEventListener('pointermove', pm);
+      el.removeEventListener('pointerup', pu); el.removeEventListener('pointercancel', pu);
       controls.dispose();
       house.traverse(o => {
         if (o.isMesh) {
@@ -254,25 +281,14 @@ export default function ThreeViewer() {
     };
   }, []);
 
-  const wk = walkRef.current;
   return (
     <div className="three-wrap">
       <div ref={mountRef} className="three-mount" />
       {viewMode === 'walk' && (
         <div className="walkpad">
-          <button
-            onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); wk.fwd = 1; }}
-            onPointerUp={() => (wk.fwd = 0)}
-            onPointerCancel={() => (wk.fwd = 0)}
-            onContextMenu={e => e.preventDefault()}
-          >▲ Walk</button>
-          <button
-            onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); wk.fwd = -1; }}
-            onPointerUp={() => (wk.fwd = 0)}
-            onPointerCancel={() => (wk.fwd = 0)}
-            onContextMenu={e => e.preventDefault()}
-          >▼ Back</button>
-          <span className="walkhint">drag to look around · WASD moves</span>
+          <span className={`walkhint${walking ? ' active' : ''}`}>
+            {walking ? 'walking… double-tap to stop' : 'double-tap to walk · drag to look'}
+          </span>
         </div>
       )}
     </div>
