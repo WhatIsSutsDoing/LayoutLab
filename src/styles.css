@@ -188,24 +188,21 @@ button { font-family: inherit; color: inherit; background: none; border: none; c
 .inspector .hint { font-size: 12px; line-height: 1.55; color: var(--ink-soft); }
 .inspector .stats { margin-top: 10px; font-size: 10.5px; color: var(--ink-dim); }
 
-/* ---------- walk pad / toast ---------- */
+/* ---------- walk hint / toast ---------- */
 .walkpad {
   position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 12px; z-index: 26;
-  pointer-events: auto;                              /* defensive: never inherit none from a parent */
+  display: flex; align-items: center; justify-content: center;
+  z-index: 26; pointer-events: none;               /* taps pass through to the canvas */
 }
-.walkpad button {
-  font-size: 12px; font-weight: 700; letter-spacing: .04em;
-  width: 88px; height: 52px; border-radius: 26px;
-  touch-action: none;                                /* browser won't hijack press as scroll/zoom */
-  user-select: none;                                 /* no text selection on long-press */
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;                       /* kills the iOS magnifier/callout popup */
-  background: var(--surface); border: 1px solid var(--accent); color: var(--accent-deep);
-  box-shadow: var(--shadow); transition: background .12s;
+.walkhint {
+  font-size: 11px; color: var(--ink-dim);
+  background: var(--surface); padding: 6px 14px; border-radius: 99px;
+  border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  transition: background .2s, color .2s, border-color .2s;
 }
-.walkpad button:active { background: var(--accent); color: #fff; }
-.walkhint { font-size: 11px; color: var(--ink-dim); background: var(--surface); padding: 5px 11px; border-radius: 99px; border: 1px solid var(--border); }
+.walkhint.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
 .toast {
   position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 99;
   font-size: 13px; font-weight: 700; padding: 11px 20px; border-radius: 99px;
